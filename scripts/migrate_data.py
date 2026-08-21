@@ -52,7 +52,7 @@ TABLES = {
     "tastybytes.MenuItem":
         "SELECT MenuItemID, MenuID, ItemName, ItemDescription, BasePrice, CalorieCount, "
         "IsVegetarian, IsGlutenFree, IsSpicy, PriceWithTax, "
-        "CONVERT(VARCHAR(16), RowVer, 2) AS RowVer, "  # hex without 0x prefix
+        "CONVERT(VARCHAR(16), CAST(RowVer AS BINARY(8)), 2) AS RowVer, "  # hex without 0x prefix
         "CONVERT(VARCHAR(23), CreatedAt, 121) AS CreatedAt FROM TastyBytes.MenuItem",
     "tastybytes.Customer":
         "SELECT CustomerID, LOWER(CONVERT(VARCHAR(36), CustomerGUID)) AS CustomerGUID, FirstName, "
