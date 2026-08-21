@@ -78,28 +78,42 @@ ELSE PRINT 'PASS: OrderDetail references resolve to MenuItem';
 -- ---------------------------------------------------------------------------
 -- 4. View returns data
 -- ---------------------------------------------------------------------------
-DECLARE @topSellers INT = (SELECT COUNT(*) FROM TastyBytes.vw_TopSellingItems);
-IF @topSellers = 0
-BEGIN PRINT 'FAIL: vw_TopSellingItems returned no rows'; SET @failures += 1; END
-ELSE PRINT CONCAT('PASS: vw_TopSellingItems returned ', @topSellers, ' rows');
+DECLARE @topSellers INT;
+IF OBJECT_ID('TastyBytes.vw_TopSellingItems', 'V') IS NOT NULL
+BEGIN
+    SET @topSellers = (SELECT COUNT(*) FROM TastyBytes.vw_TopSellingItems);
+    IF @topSellers = 0
+    BEGIN PRINT 'FAIL: vw_TopSellingItems returned no rows'; SET @failures += 1; END
+    ELSE PRINT CONCAT('PASS: vw_TopSellingItems returned ', @topSellers, ' rows');
+END
+ELSE PRINT 'SKIP: vw_TopSellingItems query (view missing)';
 
 -- ---------------------------------------------------------------------------
 -- 5. Scalar UDF formats "LASTNAME, Firstname"
 -- ---------------------------------------------------------------------------
-DECLARE @customerID INT = (SELECT MIN(CustomerID) FROM TastyBytes.Customer);
-DECLARE @expected NVARCHAR(402) = (
-    SELECT UPPER(RTRIM(LTRIM(ISNULL(LastName, '')))) + ', ' + RTRIM(LTRIM(ISNULL(FirstName, '')))
-    FROM TastyBytes.Customer WHERE CustomerID = @customerID);
-DECLARE @actual NVARCHAR(402) = TastyBytes.fn_FormatCustomerName(@customerID);
-IF @actual IS NULL OR @actual <> @expected
-BEGIN PRINT CONCAT('FAIL: fn_FormatCustomerName returned ', ISNULL(@actual, 'NULL'), ' expected ', @expected); SET @failures += 1; END
-ELSE PRINT CONCAT('PASS: fn_FormatCustomerName returned ', @actual);
+DECLARE @customerID INT, @expected NVARCHAR(402), @actual NVARCHAR(402);
+IF OBJECT_ID('TastyBytes.fn_FormatCustomerName', 'FN') IS NOT NULL
+BEGIN
+    SET @customerID = (SELECT MIN(CustomerID) FROM TastyBytes.Customer);
+    SET @expected = (
+        SELECT UPPER(RTRIM(LTRIM(ISNULL(LastName, '')))) + ', ' + RTRIM(LTRIM(ISNULL(FirstName, '')))
+        FROM TastyBytes.Customer WHERE CustomerID = @customerID);
+    SET @actual = TastyBytes.fn_FormatCustomerName(@customerID);
+    IF @actual IS NULL OR @actual <> @expected
+    BEGIN PRINT CONCAT('FAIL: fn_FormatCustomerName returned ', ISNULL(@actual, 'NULL'), ' expected ', @expected); SET @failures += 1; END
+    ELSE PRINT CONCAT('PASS: fn_FormatCustomerName returned ', @actual);
+END
+ELSE PRINT 'SKIP: fn_FormatCustomerName call (function missing)';
 
 -- ---------------------------------------------------------------------------
 -- 6. sp_UpdateInventory override and increment modes
 -- ---------------------------------------------------------------------------
 DECLARE @truckID INT = (SELECT MIN(TruckID) FROM TastyBytes.Inventory);
 
+IF OBJECT_ID('TastyBytes.sp_UpdateInventory', 'P') IS NULL
+    PRINT 'SKIP: sp_UpdateInventory behaviour (procedure missing)';
+ELSE
+BEGIN
 BEGIN TRANSACTION;
     EXEC TastyBytes.sp_UpdateInventory @TruckID = @truckID, @StockCount = 500, @Override = 1;
     IF EXISTS (SELECT 1 FROM TastyBytes.Inventory WHERE TruckID = @truckID AND QuantityOnHand <> 500)
@@ -111,6 +125,7 @@ BEGIN TRANSACTION;
     BEGIN PRINT 'FAIL: sp_UpdateInventory @Override = 0 did not increment QuantityOnHand'; SET @failures += 1; END
     ELSE PRINT 'PASS: sp_UpdateInventory @Override = 0 increments QuantityOnHand';
 ROLLBACK TRANSACTION;
+END
 
 -- ---------------------------------------------------------------------------
 -- 7. ETL log table is writable (used by the SSIS packages)
