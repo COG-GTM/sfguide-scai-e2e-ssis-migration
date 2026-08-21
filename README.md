@@ -24,6 +24,37 @@ To deploy the SQL Server sample database, run the following scripts in order aga
 
 1. `source_db/00_ddl.sql` — creates the `TastyBytesDB` database, the `TastyBytes` and `etl_results` schemas, and all tables, views, user-defined functions, and stored procedures.
 2. `source_db/01_data.sql` — populates the tables with sample data in dependency order.
+3. `source_db/02_user.sql` — creates the read-only + execute `demo_user` login used by the migration tooling.
+
+### Local setup (Docker)
+
+Prerequisites: Docker and the Microsoft SQL Server command line tools.
+
+```bash
+curl -sSL -o /tmp/msprod.deb https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb
+sudo dpkg -i /tmp/msprod.deb
+sudo apt-get update
+sudo ACCEPT_EULA=Y apt-get install -y mssql-tools18 unixodbc-dev
+```
+
+Then start SQL Server and deploy the sample database:
+
+```bash
+./scripts/setup_source_db.sh   # starts the mssql container and applies all three scripts
+./scripts/run_tests.sh         # smoke tests: objects, sample data, view, UDF, procedure, grants
+python3 scripts/validate_etl_packages.py
+```
+
+The scripts default to `localhost,1433` with the `sa` password `SnowflakeMigrations2026!`; override with
+`MSSQL_PORT`, `MSSQL_SA_PASSWORD`, `MSSQL_CONTAINER`, or `SQLCMD`. `setup_source_db.sh` is idempotent —
+`00_ddl.sql` recreates `TastyBytesDB` from scratch on every run.
+
+Query the running database as the demo user:
+
+```bash
+/opt/mssql-tools18/bin/sqlcmd -S localhost,1433 -U demo_user -P 'SnowflakeMigrations2026!' -C -N \
+    -d TastyBytesDB -Q "SELECT * FROM TastyBytes.vw_TopSellingItems"
+```
 
 ## Snowflake target
 
